@@ -31,35 +31,62 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 POKEMON_DIR = os.path.join(base_dir, "pokemon_dataset", "images")
 pokemon_images = []
 
-for img_name in os.listdir(POKEMON_DIR):
-    if img_name.lower().endswith(('.png', '.jpg', '.jpeg')):
-        img_path = os.path.join(POKEMON_DIR, img_name)
-        try:
-            img = pygame.image.load(img_path).convert_alpha()
-            name = os.path.splitext(img_name)[0].lower()
-            pokemon_images.append((img, name))
-        except:
-            continue
+if os.path.isdir(POKEMON_DIR):
+    for img_name in os.listdir(POKEMON_DIR):
+        if img_name.lower().endswith(('.png', '.jpg', '.jpeg')):
+            img_path = os.path.join(POKEMON_DIR, img_name)
+            try:
+                img = pygame.image.load(img_path).convert_alpha()
+                name = os.path.splitext(img_name)[0].lower()
+                pokemon_images.append((img, name))
+            except Exception:
+                continue
+else:
+    print(f"Warning: '{POKEMON_DIR}' not found. No Pokémon images loaded.")
 
 class Pokemon:
-    def __init__(self, image, name):
+    def __init__(self, image, name, letter=None):
         self.image = image
         self.name = name
+        self.letter = letter
         self.rect = self.image.get_rect(center=(random.randint(50, WIDTH-50), -50))
         self.spawn_time = pygame.time.get_ticks()
 
     def update(self):
         self.rect.y += POKEMON_FALL_SPEED
 
-    def draw(self, surface):
+    def draw(self, surface, show_letter=False):
         surface.blit(self.image, self.rect)
+        if show_letter and self.letter:
+            txt = font.render(self.letter.upper(), True, BLACK)
+            rect = txt.get_rect(center=self.rect.center)
+            surface.blit(txt, rect)
 
-def play_game():
+def select_difficulty():
+    """Display difficulty options and return chosen level (1-4)."""
+    while True:
+        screen.fill(WHITE)
+        prompt = font.render("Select Difficulty (1-4)", True, BLACK)
+        screen.blit(prompt, (WIDTH//2 - prompt.get_width()//2, HEIGHT//2 - 20))
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.unicode in ("1", "2", "3", "4"):
+                    return int(event.unicode)
+
+        clock.tick(30)
+
+def play_game(difficulty):
     pokemons = []
     last_spawn_time = 0
     score = 0
     start_time = pygame.time.get_ticks()
     running = True
+    typed_input = ""
 
     while running:
         dt = clock.tick(FPS)
@@ -72,13 +99,39 @@ def play_game():
 
         if current_time - last_spawn_time >= SPAWN_INTERVAL and pokemon_images:
             img, name = random.choice(pokemon_images)
-            pokemons.append(Pokemon(img, name))
+            letter = random.choice(string.ascii_lowercase) if difficulty == 2 else None
+            pokemons.append(Pokemon(img, name, letter))
             last_spawn_time = current_time
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                char = event.unicode.lower()
+                if difficulty == 2 and char in string.ascii_lowercase:
+                    caught = [p for p in pokemons if p.letter == char]
+                    for c in caught:
+                        pokemons.remove(c)
+                        score += 1
+                elif difficulty == 3 and char in string.ascii_lowercase:
+                    caught = [p for p in pokemons if p.name.startswith(char)]
+                    for c in caught:
+                        pokemons.remove(c)
+                        score += 1
+                elif difficulty == 4:
+                    if event.key == pygame.K_BACKSPACE:
+                        typed_input = typed_input[:-1]
+                    elif event.key == pygame.K_RETURN:
+                        typed_input = ""
+                    elif char and char in string.ascii_lowercase:
+                        typed_input += char
+                    for p in pokemons[:]:
+                        if typed_input == p.name:
+                            pokemons.remove(p)
+                            score += 1
+                            typed_input = ""
+                            break
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
                 clicked = None
@@ -96,7 +149,11 @@ def play_game():
 
         screen.fill(WHITE)
         for p in pokemons:
-            p.draw(screen)
+            p.draw(screen, show_letter=(difficulty == 2))
+
+        if difficulty == 4:
+            typed_text = font.render(typed_input, True, BLACK)
+            screen.blit(typed_text, (10, 90))
 
         score_text = font.render(f"Score: {score}", True, BLACK)
         screen.blit(score_text, (10, 10))
@@ -136,7 +193,8 @@ def game_over_screen(final_score):
 
 def main():
     while True:
-        score = play_game()
+        difficulty = select_difficulty()
+        score = play_game(difficulty)
         if not game_over_screen(score):
             break
 
