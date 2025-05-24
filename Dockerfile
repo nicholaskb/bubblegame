@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV POKEMON_DATASET_PATH=/app/pokemon_dataset
 
 # 1. Install base packages, X11 client libraries, and unzip
 RUN apt-get update && apt-get install -y \
@@ -26,6 +27,9 @@ RUN pip3.12 install --no-cache-dir poetry setuptools wheel kaggle
 WORKDIR /app
 COPY pyproject.toml poetry.lock* /app/
 RUN poetry install --no-root
+
+# Create pokemon dataset directory
+RUN mkdir -p ${POKEMON_DATASET_PATH} && chmod 777 ${POKEMON_DATASET_PATH}
 
 # Copy project scripts explicitly
 COPY bubble_game.py /app/
